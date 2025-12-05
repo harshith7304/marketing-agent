@@ -52,3 +52,6 @@ Thumbs.db
 # Test outputs
 tests/dataset_cols.txt
 tests/test_results.txt
+
+# Local data
+data/agent_memory.json

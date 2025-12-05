@@ -6,10 +6,12 @@ Clean, professional chat with follow-up support
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import markdown
 import os
 import sys
 
+# Add parent dir to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent.graph import MarketingAgent
@@ -290,6 +292,25 @@ HTML_PAGE = """
         }
         
         .clear-btn:hover { background: #f0f0f0; }
+
+        /* Feedback Controls */
+        .feedback-controls {
+            margin-top: 10px; 
+            border-top: 1px solid #eee; 
+            padding-top: 5px;
+            display: flex; 
+            align-items: center;
+        }
+        .feedback-controls button {
+            border: none; 
+            background: none; 
+            cursor: pointer; 
+            font-size: 1.1rem;
+            margin-right: 8px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        .feedback-controls button:hover { opacity: 1; }
     </style>
 </head>
 <body>
@@ -350,6 +371,39 @@ HTML_PAGE = """
             `;
             conversationId = 'conv_' + Date.now();
         }
+
+        async function sendFeedback(btn, rating, encQuery, encResponse) {
+            // Decode safe URI components
+            const query = decodeURIComponent(encQuery);
+            const response = decodeURIComponent(encResponse);
+            
+            // Visual feedback
+            const parent = btn.parentElement;
+            parent.innerHTML = `<span style="color:#4caf50; font-size:12px">Thanks for feedback!</span>`;
+            
+            // Extract platform if mentioned in query (simple heuristic)
+            let platform = "General";
+            let lowerQuery = query.toLowerCase();
+            if (lowerQuery.includes("instagram")) platform = "Instagram";
+            if (lowerQuery.includes("facebook")) platform = "Facebook";
+            if (lowerQuery.includes("linkedin")) platform = "LinkedIn";
+            if (lowerQuery.includes("twitter")) platform = "Twitter";
+            if (lowerQuery.includes("tiktok")) platform = "TikTok";
+            
+            try {
+                await fetch('/feedback', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        query: query,
+                        generated_copy: response,
+                        platform: platform,
+                        rating: rating,
+                        context: {"source": "web_ui"}
+                    })
+                });
+            } catch(e) { console.error(e); }
+        }
         
         async function ask() {
             const input = document.getElementById('queryInput');
@@ -394,11 +448,20 @@ HTML_PAGE = """
                 const res = await fetch('/run-agent?query=' + encodeURIComponent(query) + '&conv_id=' + conversationId);
                 const data = await res.json();
                 
+                // Encode for JS attribute safety
+                const encQuery = encodeURIComponent(query);
+                const encResponse = encodeURIComponent(data.response);
+                
                 const aiResponse = document.getElementById('aiResponse');
                 if (data.status === 'success') {
                     aiResponse.innerHTML = `
                         <div class="message-label">Marketing AI</div>
                         <div class="message-content">${data.html || escapeHtml(data.response)}</div>
+                        <div class='feedback-controls'>
+                            <small style='color:#888; margin-right:10px'>Was this helpful?</small>
+                            <button onclick='sendFeedback(this, 5, "${encQuery}", "${encResponse}")'>👍</button>
+                            <button onclick='sendFeedback(this, 1, "${encQuery}", "${encResponse}")'>👎</button>
+                        </div>
                     `;
                 } else {
                     aiResponse.innerHTML = `
@@ -408,10 +471,13 @@ HTML_PAGE = """
                 }
                 aiResponse.removeAttribute('id');
             } catch (e) {
-                document.getElementById('aiResponse').innerHTML = `
-                    <div class="message-label">Marketing AI</div>
-                    <div class="message-content" style="color:#d32f2f">Connection error. Try again.</div>
-                `;
+                const aiResponse = document.getElementById('aiResponse');
+                if (aiResponse) {
+                    aiResponse.innerHTML = `
+                        <div class="message-label">Marketing AI</div>
+                        <div class="message-content" style="color:#d32f2f">Connection error. Try again.</div>
+                    `;
+                }
             }
             
             btn.disabled = false;
@@ -421,16 +487,16 @@ HTML_PAGE = """
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
-            return div.innerHTML;
+            return div.innerHTML.replace(/"/g, '&quot;');
         }
     </script>
 </body>
 </html>
 """
 
-
 @app.get("/", response_class=HTMLResponse)
 def home():
+    print("📢 Request received for Home Page")
     return HTML_PAGE
 
 
@@ -472,12 +538,35 @@ def run_agent(query: str, conv_id: str = "default"):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-
 @app.post("/run-agent")
 def run_agent_post(query: str, conv_id: str = "default"):
     return run_agent(query, conv_id)
 
+class FeedbackRequest(BaseModel):
+    query: str
+    generated_copy: str
+    platform: str
+    rating: int
+    context: dict = {}
+
+@app.post("/feedback")
+def submit_feedback(feedback: FeedbackRequest):
+    """Submit feedback for the learning loop"""
+    try:
+        agent.memory.add_feedback(
+            query=feedback.query,
+            generated_copy=feedback.generated_copy,
+            platform=feedback.platform,
+            rating=feedback.rating,
+            context=feedback.context
+        )
+        print(f"✅ Feedback received: {feedback.rating}/5 stars for platform {feedback.platform}")
+        return {"status": "success", "rating": feedback.rating}
+    except Exception as e:
+        print(f"❌ Feedback error: {e}")
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Use 127.0.0.1 explicitly to avoid IPv6 issues if any
+    uvicorn.run(app, host="127.0.0.1", port=8000)

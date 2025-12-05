@@ -40,8 +40,13 @@ class AgentState(TypedDict):
     conversation_history: Annotated[List, operator.add]
 
 
+from agent.memory import AgentMemory
+
 class MarketingAgent:
     def __init__(self):
+        # Initialize memory
+        self.memory = AgentMemory()
+        
         # Initialize LLM (Gemini)
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",  # Fast and capable model
@@ -248,6 +253,13 @@ Answer:"""
             ad_type = state.get("ad_type", "Promotional")
             ctas = self.kg.get_recommended_cta(ad_type)
             
+            # Retrieve successful patterns from memory
+            successful_patterns = self.memory.get_successful_patterns(platform, min_rating=4)
+            patterns_text = ""
+            if successful_patterns:
+                top_pattern = successful_patterns[0]
+                patterns_text = f"\nSuccessful Ad Example ({platform}):\n'{top_pattern['copy']}'\n(Rated {top_pattern['rating']}/5)\n"
+            
             # Build prompt with or without knowledge base context
             knowledge_section = f"\nBest Practices from Knowledge Base:\n{knowledge}\n" if knowledge else ""
             
@@ -263,6 +275,7 @@ Constraints:
 - Preferred Tones: {', '.join(preferred_tones)}
 - Recommended CTAs: {', '.join(ctas[:3])}
 {knowledge_section}
+{patterns_text}
 Create compelling ad copy that:
 1. Follows the character limit strictly
 2. Uses the {tone} tone but adapts to platform preferences
