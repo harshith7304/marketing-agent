@@ -93,18 +93,6 @@ class AgentMemory:
         # Track platform performance
         if "platform_performance" not in self.memory:
             self.memory["platform_performance"] = {}
-        
-        if platform not in self.memory["platform_performance"]:
-            self.memory["platform_performance"][platform] = []
-        
-        self.memory["platform_performance"][platform].append(rating)
-        
-        # Track tone effectiveness if available
-        if context and "tone" in context:
-            tone = context["tone"]
-            if "tone_effectiveness" not in self.memory:
-                self.memory["tone_effectiveness"] = {}
-            
             if tone not in self.memory["tone_effectiveness"]:
                 self.memory["tone_effectiveness"][tone] = []
             
@@ -112,6 +100,16 @@ class AgentMemory:
         
         self.save_memory()
     
+    def get_recent_patterns(self, limit: int = 5) -> List[Dict]:
+        """Get most recent successful patterns across all platforms"""
+        # Sort by timestamp descending
+        sorted_patterns = sorted(
+            self.memory["successful_patterns"], 
+            key=lambda x: x.get("timestamp", ""), 
+            reverse=True
+        )
+        return sorted_patterns[:limit]
+
     def get_successful_patterns(self, platform: str = None, min_rating: int = 4) -> List[dict]:
         """Retrieve successful patterns, optionally filtered by platform"""
         patterns = self.memory["successful_patterns"]

@@ -187,25 +187,45 @@ class MarketingAgent:
         retrieved_knowledge = state.get("retrieved_knowledge", [])
         
         # Build prompt based on whether we have knowledge context
+        # Build prompt based on whether we have knowledge context
+        knowledge_context = ""
         if retrieved_knowledge:
-            knowledge = "\n\n".join(retrieved_knowledge)
-            prompt = f"""You are a marketing expert assistant. Answer the user's question based on the following knowledge base.
+            knowledge_context = "Knowledge Base:\n" + "\n\n".join(retrieved_knowledge)
+        
+        # Add recent successful patterns from memory
+        recent_patterns = self.memory.get_recent_patterns(limit=3)
+        patterns_context = ""
+        if recent_patterns:
+            patterns_str = "\n".join([
+                f"- For {p['platform']}: \"{p['copy'][:100]}...\" (Rated {p['rating']}/5)"
+                for p in recent_patterns
+            ])
+            patterns_context = f"\n\nProven Success Patterns (User Feedback):\n{patterns_str}"
+        
+        full_context = knowledge_context + patterns_context
 
-Knowledge Base:
-{knowledge}
+        if full_context:
+            prompt = f"""You are a marketing expert assistant. Answer the user's question directly using the provided context and your expertise.
+
+{full_context}
 
 User Question: {query}
 
-Provide a clear, concise, and actionable answer. If the knowledge base doesn't contain enough information, supplement with your general marketing expertise.
+Instructions:
+1. Answer the question directly and professionally.
+2. Use the "Proven Success Patterns" as inspiration if relevant.
+3. Do NOT say "The knowledge base does not contain..." or mentions sources. Just give the best answer.
 
 Answer:"""
         else:
             # No documents available - use general knowledge
-            prompt = f"""You are a marketing expert assistant with deep knowledge of digital advertising, copywriting, and marketing best practices.
+            prompt = f"""You are a marketing expert assistant with deep knowledge of digital advertising.
 
 User Question: {query}
 
-Provide a clear, concise, and actionable answer based on your marketing expertise and industry best practices.
+Instructions:
+1. Answer the question directly and professionally.
+2. Do NOT mention that you are using general knowledge.
 
 Answer:"""
         
