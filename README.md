@@ -43,10 +43,10 @@ The system supports multiple platforms including Facebook, Instagram, LinkedIn, 
 pip install -r requirements.txt
 echo "GOOGLE_API_KEY=your_key" > .env
 python vectorstore_setup.py
-uvicorn main:app --port 8000
+python main.py
 ```
 
-Open http://localhost:8000 to use the chat interface.
+Open http://127.0.0.1:8000 to use the chat interface.
 
 ## Improvements & Next Steps
 

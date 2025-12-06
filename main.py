@@ -448,9 +448,9 @@ HTML_PAGE = """
                 const res = await fetch('/run-agent?query=' + encodeURIComponent(query) + '&conv_id=' + conversationId);
                 const data = await res.json();
                 
-                // Encode for JS attribute safety
-                const encQuery = encodeURIComponent(query);
-                const encResponse = encodeURIComponent(data.response);
+                // Encode for JS attribute safety (encodeURIComponent + manual quote escaping)
+                const encQuery = encodeURIComponent(query).replace(/'/g, "%27");
+                const encResponse = encodeURIComponent(data.response).replace(/'/g, "%27");
                 
                 const aiResponse = document.getElementById('aiResponse');
                 if (data.status === 'success') {
@@ -459,8 +459,8 @@ HTML_PAGE = """
                         <div class="message-content">${data.html || escapeHtml(data.response)}</div>
                         <div class='feedback-controls'>
                             <small style='color:#888; margin-right:10px'>Was this helpful?</small>
-                            <button onclick='sendFeedback(this, 5, "${encQuery}", "${encResponse}")'>👍</button>
-                            <button onclick='sendFeedback(this, 1, "${encQuery}", "${encResponse}")'>👎</button>
+                            <button onclick="sendFeedback(this, 5, '${encQuery}', '${encResponse}')">👍</button>
+                            <button onclick="sendFeedback(this, 1, '${encQuery}', '${encResponse}')">👎</button>
                         </div>
                     `;
                 } else {
